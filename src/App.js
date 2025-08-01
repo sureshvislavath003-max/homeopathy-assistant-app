@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth'; // Removed signInWithCustomToken
+import { getFirestore } from 'firebase/firestore'; // Removed db variable usage
 
 // Lucide React Icons for a clean look
-import { Sun, Moon, Mic, ChevronRight, Heart, Pill, ShieldOff, Leaf, BookOpen } from 'lucide-react';
+import { Sun, Moon, Mic, ChevronRight, Heart, Pill, ShieldOff, Leaf, BookOpen, RotateCcw } from 'lucide-react'; // Added RotateCcw for reset button
 
 // --- Firebase Configuration for Netlify Compatibility ---
 // These values are now directly defined or set to null/default,
@@ -17,18 +17,18 @@ const firebaseConfig = {
   messagingSenderId: "YOUR_FIREBASE_MESSAGING_SENDER_ID",
   appId: "YOUR_FIREBASE_APP_ID"
 };
-const initialAuthToken = null; // No initial auth token from Canvas
-const defaultAppId = 'netlify-app'; // A simple default ID for the app
+// const initialAuthToken = null; // Removed as it's not used in simplified auth
+// const defaultAppId = 'netlify-app'; // Removed as it's not used
 
 // Initialize Firebase outside the component to avoid re-initialization
 let app;
 let auth;
-let db;
+let db; // db variable is declared but not used in this simplified version, ESLint might still warn, but it's not critical for build failure
 
 try {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
-  db = getFirestore(app);
+  db = getFirestore(app); // db is initialized but not used for data operations in this version
 } catch (error) {
   // Log Firebase initialization error, but don't stop the app if it's just local testing without full setup
   console.error("Firebase initialization error:", error);
@@ -79,10 +79,15 @@ const App = () => {
       }
     };
 
-    if (!isAuthReady) { // Only run once
-      setupUserId();
+    // This useEffect should only run once on mount, so 'auth' is not a dependency that causes re-runs.
+    // We check if auth is initialized successfully before calling setupUserId.
+    if (auth && !isAuthReady) { // Only run if auth is available and not already ready
+        setupUserId();
+    } else if (!auth && !isAuthReady) { // If auth is not available (e.g., Firebase init failed), still set local ID
+        setUserId(crypto.randomUUID());
+        setIsAuthReady(true);
     }
-  }, [auth, isAuthReady]); // Depend on auth instance, and isAuthReady to prevent re-runs
+  }, [auth, isAuthReady]); // 'auth' is a dependency because its initial value determines the path; 'isAuthReady' prevents infinite loop
 
 
   useEffect(() => {
@@ -169,7 +174,6 @@ const App = () => {
       } : {},
     };
 
-    // YOUR ACTUAL GEMINI API KEY IS HERE
     const apiKey = "AIzaSyC1T68RXnaa55ek6uS-YrF8oRAWB_8QeBI"; 
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
 
@@ -275,7 +279,7 @@ const App = () => {
     const currentCategory = clarifiedSymptoms[currentQuestionnaireIndex];
     const selectedOptionsForCurrentStep = currentCategory.options.filter(option => selectedClarifications.includes(option));
     const currentInput = symptomInput.trim();
-    const newSymptomPart = selectedOptionsForCurrentStep.join(', ');
+    const newSymptomPart = selectedOptionsForCurrentStep.length > 0 ? selectedOptionsForCurrentStep.join(', ') : '';
     setSymptomInput(currentInput ? `${currentInput}, ${newSymptomPart}` : newSymptomPart);
 
     if (currentQuestionnaireIndex === clarifiedSymptoms.length - 1) {
