@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth'; // Removed signInWithCustomToken
-import { getFirestore } from 'firebase/firestore'; // Removed db variable usage
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth'; // Removed signInWithCustomToken as it's not used
+import { getFirestore } from 'firebase/firestore'; // Keep getFirestore import if you might use db later
 
 // Lucide React Icons for a clean look
-import { Sun, Moon, Mic, ChevronRight, Heart, Pill, ShieldOff, Leaf, BookOpen, RotateCcw } from 'lucide-react'; // Added RotateCcw for reset button
+import { Sun, Moon, Mic, ChevronRight, Heart, Pill, ShieldOff, Leaf, BookOpen, RotateCcw } from 'lucide-react'; // RotateCcw is used for the reset button
 
 // --- Firebase Configuration for Netlify Compatibility ---
 // These values are now directly defined or set to null/default,
@@ -17,18 +17,20 @@ const firebaseConfig = {
   messagingSenderId: "YOUR_FIREBASE_MESSAGING_SENDER_ID",
   appId: "YOUR_FIREBASE_APP_ID"
 };
-// const initialAuthToken = null; // Removed as it's not used in simplified auth
-// const defaultAppId = 'netlify-app'; // Removed as it's not used
+// initialAuthToken and defaultAppId removed as they are not used in this simplified auth setup
+// const initialAuthToken = null;
+// const defaultAppId = 'netlify-app';
 
 // Initialize Firebase outside the component to avoid re-initialization
 let app;
 let auth;
-let db; // db variable is declared but not used in this simplified version, ESLint might still warn, but it's not critical for build failure
+let db;
 
 try {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
-  db = getFirestore(app); // db is initialized but not used for data operations in this version
+  db = getFirestore(app); // db is initialized but not directly used for data operations in this version, which ESLint might flag.
+                          // For this context, it's okay as it doesn't cause a build failure.
 } catch (error) {
   // Log Firebase initialization error, but don't stop the app if it's just local testing without full setup
   console.error("Firebase initialization error:", error);
@@ -51,7 +53,7 @@ const App = () => {
   const recognitionRef = useRef(null);
   const inputRef = useRef(null);
 
-  // --- Simplified User ID Setup for Netlify Compatibility ---
+  // --- User ID Setup for Netlify Compatibility ---
   // This now always attempts anonymous sign-in or generates a local UUID.
   useEffect(() => {
     const setupUserId = async () => {
@@ -79,13 +81,10 @@ const App = () => {
       }
     };
 
-    // This useEffect should only run once on mount, so 'auth' is not a dependency that causes re-runs.
-    // We check if auth is initialized successfully before calling setupUserId.
-    if (auth && !isAuthReady) { // Only run if auth is available and not already ready
-        setupUserId();
-    } else if (!auth && !isAuthReady) { // If auth is not available (e.g., Firebase init failed), still set local ID
-        setUserId(crypto.randomUUID());
-        setIsAuthReady(true);
+    // This useEffect should only run once on mount.
+    // The dependency array is correct: it depends on 'auth' (its initial value) and 'isAuthReady' to prevent re-runs.
+    if (!isAuthReady) { // Only run if not already ready
+      setupUserId();
     }
   }, [auth, isAuthReady]); // 'auth' is a dependency because its initial value determines the path; 'isAuthReady' prevents infinite loop
 
@@ -279,7 +278,7 @@ const App = () => {
     const currentCategory = clarifiedSymptoms[currentQuestionnaireIndex];
     const selectedOptionsForCurrentStep = currentCategory.options.filter(option => selectedClarifications.includes(option));
     const currentInput = symptomInput.trim();
-    const newSymptomPart = selectedOptionsForCurrentStep.length > 0 ? selectedOptionsForCurrentStep.join(', ') : '';
+    const newSymptomPart = selectedOptionsForCurrentStep.join(', ');
     setSymptomInput(currentInput ? `${currentInput}, ${newSymptomPart}` : newSymptomPart);
 
     if (currentQuestionnaireIndex === clarifiedSymptoms.length - 1) {
