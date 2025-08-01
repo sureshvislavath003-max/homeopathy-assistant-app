@@ -2,6 +2,7 @@
   "name": "homeopathy-app",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://remedyassist.netlify.app/", 
   "dependencies": {
     "firebase": "^11.6.1",
     "lucide-react": "^0.303.0",
