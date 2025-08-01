@@ -4,7 +4,7 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth'; 
 
 // Lucide React Icons for a clean look
 import { Sun, Moon, Mic, ChevronRight, Heart, Pill, ShieldOff, Leaf, BookOpen } from 'lucide-react'; // RotateCcw is used for the reset button
-
+import { getFirestore } from 'firebase/firestore';
 // --- Firebase Configuration for Netlify Compatibility ---
 // These values are now directly defined or set to null/default,
 // completely removing reliance on Canvas-specific global variables.
