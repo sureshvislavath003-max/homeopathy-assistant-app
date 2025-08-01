@@ -6,18 +6,19 @@ import { getFirestore } from 'firebase/firestore';
 // Lucide React Icons for a clean look
 import { Sun, Moon, Mic, ChevronRight, Heart, Pill, ShieldOff, Leaf, BookOpen } from 'lucide-react';
 
-// Define the Firebase config and app ID from the global variables
-// Provide fallback values for local development
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-  apiKey: "YOUR_FIREBASE_API_KEY", // Replace with your actual Firebase API Key if you want to use Firebase locally
-  authDomain: "YOUR_FIREBASE_AUTH_DOMAIN",
-  projectId: "YOUR_FIREBASE_PROJECT_ID",
+// --- Firebase Configuration for Netlify Compatibility ---
+// These values are now directly defined or set to null/default,
+// completely removing reliance on Canvas-specific global variables.
+const firebaseConfig = {
+  apiKey: "YOUR_FIREBASE_API_KEY", // IMPORTANT: If you want Firebase to work locally, replace this with YOUR actual Firebase API Key
+  authDomain: "YOUR_FIREBASE_AUTH_DOMAIN", // Replace with your actual Firebase Auth Domain
+  projectId: "YOUR_FIREBASE_PROJECT_ID",   // Replace with your actual Firebase Project ID
   storageBucket: "YOUR_FIREBASE_STORAGE_BUCKET",
   messagingSenderId: "YOUR_FIREBASE_MESSAGING_SENDER_ID",
   appId: "YOUR_FIREBASE_APP_ID"
 };
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id-for-local'; // Fallback for local
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null; // Fallback for local
+const initialAuthToken = null; // No initial auth token from Canvas
+const defaultAppId = 'netlify-app'; // A simple default ID for the app
 
 // Initialize Firebase outside the component to avoid re-initialization
 let app;
@@ -29,6 +30,7 @@ try {
   auth = getAuth(app);
   db = getFirestore(app);
 } catch (error) {
+  // Log Firebase initialization error, but don't stop the app if it's just local testing without full setup
   console.error("Firebase initialization error:", error);
 }
 
@@ -37,55 +39,52 @@ const App = () => {
   const [remedyData, setRemedyData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isClarifying, setIsClarifying] = useState(false);
-  // clarifiedSymptoms will now store an array of objects: [{ category: string, options: string[] }]
   const [clarifiedSymptoms, setClarifiedSymptoms] = useState(null);
-  const [currentQuestionnaireIndex, setCurrentQuestionnaireIndex] = useState(0); // Current step in questionnaire
-  const [selectedClarifications, setSelectedClarifications] = useState([]); // Stores all selected option strings across steps
+  const [currentQuestionnaireIndex, setCurrentQuestionnaireIndex] = useState(0);
+  const [selectedClarifications, setSelectedClarifications] = useState([]);
   const [error, setError] = useState(null);
   const [userId, setUserId] = useState(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
-  const [darkMode, setDarkMode] = useState(false); // Dark mode state
+  const [isAuthReady, setIsAuthReady] = useState(false); // Indicates if user ID is ready
+  const [darkMode, setDarkMode] = useState(false);
 
   // Ref for voice input
   const recognitionRef = useRef(null);
-  const inputRef = useRef(null); // Ref for the main symptom input field
+  const inputRef = useRef(null);
 
-  // Authenticate with Firebase on component mount
+  // --- Simplified User ID Setup for Netlify Compatibility ---
+  // This now always attempts anonymous sign-in or generates a local UUID.
   useEffect(() => {
-    const authenticateFirebase = async () => {
-      if (!auth) {
-        setError("Firebase Auth not initialized.");
-        setIsAuthReady(true);
-        return;
-      }
-      try {
-        if (initialAuthToken) {
-          await signInWithCustomToken(auth, initialAuthToken);
-        } else {
+    const setupUserId = async () => {
+      if (auth) { // Only try Firebase auth if it initialized successfully
+        try {
+          // Attempt anonymous sign-in
           await signInAnonymously(auth);
-        }
-        onAuthStateChanged(auth, (user) => {
-          if (user) {
-            setUserId(user.uid);
-          } else {
-            setUserId(crypto.randomUUID()); // Fallback for unauthenticated
-          }
+          onAuthStateChanged(auth, (user) => {
+            if (user) {
+              setUserId(user.uid);
+            } else {
+              setUserId(crypto.randomUUID()); // Fallback if auth state changes unexpectedly
+            }
+            setIsAuthReady(true);
+          });
+        } catch (e) {
+          console.error("Firebase anonymous sign-in error:", e);
+          setError("Failed to initialize user session. Using local ID.");
+          setUserId(crypto.randomUUID()); // Fallback to a random ID if Firebase auth fails
           setIsAuthReady(true);
-        });
-      } catch (e) {
-        console.error("Firebase authentication error:", e);
-        setError("Failed to authenticate with Firebase.");
-        setUserId(crypto.randomUUID()); // Fallback to a random ID
+        }
+      } else { // If Firebase auth didn't initialize, just generate a local UUID
+        setUserId(crypto.randomUUID());
         setIsAuthReady(true);
       }
     };
 
-    if (auth && !isAuthReady) {
-      authenticateFirebase();
+    if (!isAuthReady) { // Only run once
+      setupUserId();
     }
-  }, [auth, initialAuthToken, isAuthReady]); // Added auth and initialAuthToken as dependencies for useEffect.
+  }, [auth, isAuthReady]); // Depend on auth instance, and isAuthReady to prevent re-runs
 
-  // Handle dark mode class on body
+
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -94,46 +93,36 @@ const App = () => {
     }
   }, [darkMode]);
 
-  // Initialize SpeechRecognition
   useEffect(() => {
     if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false; // Only get one result at a time
-      recognitionRef.current.interimResults = false; // Don't show interim results
-
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
       recognitionRef.current.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
         if (inputRef.current) {
-          // Determine which input field to update based on context
-          if (isClarifying) { // If questionnaire is active, update symptomInput
-            setSymptomInput(prev => prev.trim() ? `${prev}, ${transcript}` : transcript);
-          } else { // Otherwise, update the main symptom input
-            setSymptomInput(transcript);
-          }
+          setSymptomInput(prev => isClarifying && prev.trim() ? `${prev}, ${transcript}` : transcript);
         }
-        setIsLoading(false); // Stop loading indicator after speech input
+        setIsLoading(false);
       };
-
       recognitionRef.current.onerror = (event) => {
         console.error('Speech recognition error:', event.error);
         setError(`Speech recognition error: ${event.error}`);
         setIsLoading(false);
       };
-
       recognitionRef.current.onend = () => {
-        setIsLoading(false); // Ensure loading is off when recognition ends
+        setIsLoading(false);
       };
     } else {
       console.warn('Speech Recognition not supported in this browser.');
-      // Optionally, disable mic button or show a message
     }
-  }, [isClarifying]); // Re-initialize if isClarifying changes to correctly target input
+  }, [isClarifying]);
 
   const startVoiceInput = () => {
     if (recognitionRef.current && !isLoading) {
       setError(null);
-      setIsLoading(true); // Show loading indicator while listening
+      setIsLoading(true);
       try {
         recognitionRef.current.start();
       } catch (e) {
@@ -144,15 +133,13 @@ const App = () => {
     }
   };
 
-
-  // Generic function to call Gemini API with exponential backoff
   const callGeminiApi = async (prompt, isJson, customResponseSchema = null, retries = 0) => {
     const chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
     const payload = {
       contents: chatHistory,
       generationConfig: isJson ? {
         responseMimeType: "application/json",
-        responseSchema: customResponseSchema || { // Default schema for remedies
+        responseSchema: customResponseSchema || {
           type: "OBJECT",
           properties: {
             remedies: {
@@ -182,12 +169,8 @@ const App = () => {
       } : {},
     };
 
-    // YOUR ACTUAL GEMINI API KEY IS NOW HERE
-    // Make sure to replace "YOUR_ACTUAL_GEMINI_API_KEY_HERE" with your key from Google AI Studio
+    // YOUR ACTUAL GEMINI API KEY IS HERE
     const apiKey = "AIzaSyC1T68RXnaa55ek6uS-YrF8oRAWB_8QeBI"; 
-    // If you are running this in the Canvas environment, the apiKey will be provided automatically.
-    // For local development, you MUST replace the placeholder above with your own key.
-
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
 
     try {
@@ -197,28 +180,22 @@ const App = () => {
         body: JSON.stringify(payload)
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const result = await response.json();
 
-      if (result.candidates && result.candidates.length > 0 &&
-          result.candidates[0].content && result.candidates[0].content.parts &&
-          result.candidates[0].content.parts.length > 0) {
-        const responseText = result.candidates[0].content.parts[0].text;
-        return isJson ? JSON.parse(responseText) : responseText;
+      if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
+        return isJson ? JSON.parse(result.candidates[0].content.parts[0].text) : result.candidates[0].content.parts[0].text;
       } else {
         throw new Error("Invalid response format from API.");
       }
     } catch (e) {
       console.error("API call error:", e);
-      if (retries < 3) { // Exponential backoff with max 3 retries
-        const delay = Math.pow(2, retries) * 1000; // 1s, 2s, 4s
-        await new Promise(res => setTimeout(res, delay)); // Wait for delay
-        return callGeminiApi(prompt, isJson, customResponseSchema, retries + 1); // Retry with custom schema
+      if (retries < 3) {
+        const delay = Math.pow(2, retries) * 1000;
+        await new Promise(res => setTimeout(res, delay));
+        return callGeminiApi(prompt, isJson, customResponseSchema, retries + 1);
       } else {
-        throw new Error("Failed to communicate with the AI. Please try again later.");
+        throw new Error("Failed to communicate with the AI.");
       }
     }
   };
@@ -228,38 +205,14 @@ const App = () => {
       setError("Please enter symptoms or a disease name.");
       return;
     }
-
     setIsLoading(true);
     setError(null);
     setRemedyData(null);
-    setClarifiedSymptoms(null); // Clear clarified symptoms when fetching remedies
-    setSelectedClarifications([]); // Clear selections
-    setCurrentQuestionnaireIndex(0); // Reset questionnaire index
+    setClarifiedSymptoms(null);
+    setSelectedClarifications([]);
+    setCurrentQuestionnaireIndex(0);
 
-    const prompt = `As a world-class expert homeopath, provide structured, professional, safe, and clear homeopathic remedy suggestions for the following symptoms/disease: '${symptomInput}'.
-    Please provide the output in the following JSON format:
-    \`\`\`json
-    {
-      "remedies": [
-        {
-          "name": "Bryonia alba",
-          "used_for": "Dry cough with chest pain",
-          "how_it_works": "Relieves cough by reducing internal dryness and inflammation in the chest lining.",
-          "dosage": "30C, twice a day for 5 days",
-          "stop_when": "When cough reduces significantly or after 7 days",
-          "avoid": "Pregnant women, children under 5 years",
-          "side_effects": "Rare nausea or dry mouth",
-          "source": "Extracted from the root of the white bryony plant"
-        }
-      ],
-      "lifestyle_tips": [
-        "Drink warm water with honey",
-        "Avoid cold foods and drinks",
-        "Rest the voice if throat is affected"
-      ]
-    }
-    \`\`\`
-    Ensure the 'dosage' includes potency, frequency, and duration. 'stop_when' should clearly state when to discontinue. 'avoid' should list who should not use it. 'side_effects' should mention possible side effects. 'source' should state the natural origin. Provide top 3 remedies if possible.`;
+    const prompt = `As a world-class expert homeopath, provide structured, professional, safe, and clear homeopathic remedy suggestions for the following symptoms/disease: '${symptomInput}'. Please provide the output in a JSON format with remedies and lifestyle_tips.`;
 
     try {
       const parsedJson = await callGeminiApi(prompt, true);
@@ -279,12 +232,11 @@ const App = () => {
 
     setIsClarifying(true);
     setError(null);
-    setRemedyData(null); // Clear previous remedy data
-    setClarifiedSymptoms(null); // Clear previous clarifications
-    setSelectedClarifications([]); // Clear selections
-    setCurrentQuestionnaireIndex(0); // Reset to the first step
+    setRemedyData(null);
+    setClarifiedSymptoms(null);
+    setSelectedClarifications([]);
+    setCurrentQuestionnaireIndex(0);
 
-    // Define the schema for the structured clarification response
     const clarificationSchema = {
       type: "ARRAY",
       items: {
@@ -300,27 +252,7 @@ const App = () => {
       }
     };
 
-    // Updated prompt to specifically ask for a much more comprehensive questionnaire (20-50 questions)
-    const prompt = `As a professional classical homeopath AI assistant, I need to thoroughly understand the user's symptoms or disease: '${symptomInput}'. Please generate a comprehensive questionnaire with multiple categories of clarifying questions. These questions should delve deeply into the **specific characteristics of the current symptoms**, **past medical history (including family history and previous illnesses/treatments related or unrelated to the current issue)**, **mental and emotional state (including temperament, anxieties, fears, mood swings, reactions to stress)**, and **relevant lifestyle factors (e.g., detailed diet preferences/aversions, sleep patterns and quality, energy levels throughout the day, daily habits, reactions to weather/temperature changes, environmental sensitivities, thirst, perspiration, desires, and aversions)**.
-
-    Aim for a total of **20 to 50 specific, distinct questions/statements** across all categories, ensuring each category has a diverse set of 3-7 tickable options that a user can choose from. The questions should be phrased empathetically and professionally, like a homeodoctor conducting a detailed intake.
-
-    Format your response as a JSON array of objects, where each object has a 'category' (the question or general symptom area) and an 'options' array (a list of specific choices).
-
-    Example of desired output structure with more extensive categories and options (for reference, actual content will be dynamic):
-    [
-      {"category": "Current Symptom - Pain Character", "options": ["Stinging", "Burning", "Throbbing", "Dull ache", "Sharp, cutting", "Pressing", "Tearing", "Sore, bruised", "Cramping"]},
-      {"category": "Current Symptom - Modalities (Better/Worse)", "options": ["Worse from cold", "Better from warmth", "Worse from motion", "Better from rest", "Worse at night", "Better in open air", "Worse from touch", "Better from pressure", "Worse after eating"]},
-      {"category": "Past Medical History - Childhood Illnesses", "options": ["Frequent colds/flu as child", "Measles", "Mumps", "Chickenpox", "Frequent ear infections", "Chronic tonsillitis"]},
-      {"category": "Past Medical History - Adult Illnesses", "options": ["Recurrent infections", "Allergies/Asthma history", "Skin conditions (eczema, psoriasis)", "Digestive disorders (IBS, ulcers)", "Migraines/Headaches", "Joint pain/Arthritis", "Thyroid issues", "Diabetes"]},
-      {"category": "Mental/Emotional State - Mood", "options": ["Irritable/Impatient", "Anxious/Fearful", "Sad/Depressed", "Indifferent/Apathetic", "Restless/Agitated", "Overly sensitive", "Easily angered", "Cheerful/Optimistic"]},
-      {"category": "Lifestyle - Sleep Patterns", "options": ["Sound and refreshing", "Restless with frequent waking", "Difficulty falling asleep", "Waking too early and cannot return to sleep", "Sleepwalking/talking", "Drowsiness during the day", "Insomnia from thoughts"]},
-      {"category": "Lifestyle - Food Preferences/Aversions", "options": ["Craves sweets", "Craves salty foods", "Aversion to meat", "Desires sour foods", "Thirst for cold drinks", "No thirst", "Craves spicy foods", "Aversion to fatty foods", "Desires milk"]},
-      {"category": "Lifestyle - Thirst", "options": ["Frequent, large quantities", "Frequent, small sips", "No thirst", "Thirst for cold drinks", "Thirst for warm drinks"]},
-      {"category": "Lifestyle - Perspiration", "options": ["Profuse perspiration", "Scanty perspiration", "Perspires easily", "Night sweats", "Perspiration stains yellow"]},
-      {"category": "Lifestyle - General Sensitivities", "options": ["Sensitive to noise", "Sensitive to light", "Sensitive to odors", "Sensitive to touch", "Sensitive to pain"]},
-      {"category": "Lifestyle - Reactions to Weather", "options": ["Worse in cold, damp weather", "Better in open air", "Worse in stuffy rooms", "Sensitive to drafts", "Worse from heat", "Better from warmth", "Worse before storms"]}
-    ]`;
+    const prompt = `Generate a comprehensive homeopathic symptom questionnaire for '${symptomInput}' with categories and tickable options.`;
 
     try {
       const clarificationArray = await callGeminiApi(prompt, true, clarificationSchema);
@@ -332,37 +264,27 @@ const App = () => {
     }
   };
 
-  // Handler for checkbox changes for the current step
   const handleCheckboxChange = (option) => {
-    setSelectedClarifications((prevSelected) =>
-      prevSelected.includes(option)
-        ? prevSelected.filter((item) => item !== option)
-        : [...prevSelected, option]
+    setSelectedClarifications((prev) =>
+      prev.includes(option) ? prev.filter(item => item !== option) : [...prev, option]
     );
   };
 
-  // Navigate questionnaire steps
   const handleQuestionnaireNavigation = async () => {
     if (!clarifiedSymptoms) return;
-
     const currentCategory = clarifiedSymptoms[currentQuestionnaireIndex];
     const selectedOptionsForCurrentStep = currentCategory.options.filter(option => selectedClarifications.includes(option));
-
-    // Append selected options for current step to symptomInput
     const currentInput = symptomInput.trim();
-    const newSymptomPart = selectedOptionsForCurrentStep.length > 0 ? selectedOptionsForCurrentStep.join(', ') : '';
+    const newSymptomPart = selectedOptionsForCurrentStep.join(', ');
     setSymptomInput(currentInput ? `${currentInput}, ${newSymptomPart}` : newSymptomPart);
 
-    // If it's the last step, trigger remedy fetch
     if (currentQuestionnaireIndex === clarifiedSymptoms.length - 1) {
-      setClarifiedSymptoms(null); // Hide questionnaire
-      setSelectedClarifications([]); // Clear selections
-      setCurrentQuestionnaireIndex(0); // Reset index
-      await fetchRemedies(); // Fetch remedies with accumulated symptoms
+      setClarifiedSymptoms(null);
+      setSelectedClarifications([]);
+      setCurrentQuestionnaireIndex(0);
+      await fetchRemedies();
     } else {
-      // Move to next step
-      setCurrentQuestionnaireIndex(prevIndex => prevIndex + 1);
-      // Keep existing selectedClarifications as they are cumulative
+      setCurrentQuestionnaireIndex(prev => prev + 1);
     }
   };
 
@@ -375,7 +297,6 @@ const App = () => {
     setCurrentQuestionnaireIndex(0);
     setSelectedClarifications([]);
     setError(null);
-    // userId and isAuthReady remain
   };
 
   return (
