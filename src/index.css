@@ -1,0 +1,26 @@
+/* src/index.css */
+/* Import Tailwind CSS directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Basic body styles for fonts and full height */
+body {
+  margin: 0;
+  font-family: 'Inter', 'Poppins', sans-serif; /* Use Inter and Poppins, with sans-serif fallback */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh; /* Ensure body takes full viewport height */
+}
+
+/* Code block font styling */
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* Dark mode styles for body and root div, applied when 'dark' class is present on html */
+.dark body {
+  background-color: #1a202c; /* Dark gray for dark mode body */
+  color: #e2e8f0; /* Light text for dark mode */
+}
