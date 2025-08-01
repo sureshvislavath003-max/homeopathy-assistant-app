@@ -183,6 +183,7 @@ const App = () => {
     };
 
     // YOUR ACTUAL GEMINI API KEY IS NOW HERE
+    // Make sure to replace "YOUR_ACTUAL_GEMINI_API_KEY_HERE" with your key from Google AI Studio
     const apiKey = "AIzaSyC1T68RXnaa55ek6uS-YrF8oRAWB_8QeBI"; 
     // If you are running this in the Canvas environment, the apiKey will be provided automatically.
     // For local development, you MUST replace the placeholder above with your own key.
