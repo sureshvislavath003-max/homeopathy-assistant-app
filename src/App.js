@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth'; // Removed signInWithCustomToken as it's not used
-import { getFirestore } from 'firebase/firestore'; // Keep getFirestore import if you might use db later
 
 // Lucide React Icons for a clean look
-import { Sun, Moon, Mic, ChevronRight, Heart, Pill, ShieldOff, Leaf, BookOpen, RotateCcw } from 'lucide-react'; // RotateCcw is used for the reset button
+import { Sun, Moon, Mic, ChevronRight, Heart, Pill, ShieldOff, Leaf, BookOpen } from 'lucide-react'; // RotateCcw is used for the reset button
 
 // --- Firebase Configuration for Netlify Compatibility ---
 // These values are now directly defined or set to null/default,
@@ -289,17 +288,6 @@ const App = () => {
     } else {
       setCurrentQuestionnaireIndex(prev => prev + 1);
     }
-  };
-
-  const resetApp = () => {
-    setSymptomInput('');
-    setRemedyData(null);
-    setIsLoading(false);
-    setIsClarifying(false);
-    setClarifiedSymptoms(null);
-    setCurrentQuestionnaireIndex(0);
-    setSelectedClarifications([]);
-    setError(null);
   };
 
   return (
